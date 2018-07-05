@@ -1,0 +1,134 @@
+import tensorflow as tf
+import numpy as np
+
+class ZeroGamaDQN:
+    def __init__(self, train_flag, imsize, weight_filename=None):
+        self.train_flag = train_flag
+        self.imsize = imsize
+        ## 200ms~800ms, every 20ms is a decision
+        self.decision_size = 31
+        self.graph = tf.Graph()
+        self.parameters = []
+        self.session = tf.Session(graph=self.graph)
+        self.__setup_net_structure()
+        self.reset_weights()
+        if weight_filename is not None:
+            self.load_weights(weight_filename)
+        return
+
+    def reset_weights(self):
+        with self.graph.as_default():
+            init = tf.global_variables_initializer()
+            self.session.run(init)
+
+    def __setup_net_structure(self):
+        with self.graph.as_default():
+            with tf.name_scope('input'):
+                self.im = tf.placeholder(tf.float32, [None, self.imsize[0], self.imsize[1], self.imsize[2]], name='image')
+            with tf.name_scope('conv1') as scope:
+                kernel = tf.Variable(tf.truncated_normal([3, 3, self.imsize[2], 16],
+                                                         dtype=tf.float32,
+                                                         stddev=1e-1),
+                                     name='weights')
+                conv = tf.nn.conv2d(self.im, kernel, [1, 1, 1, 1], padding='VALID')
+                biases = tf.Variable(tf.constant(0.0, shape=[16], dtype=tf.float32),
+                                     trainable=True, name='biases')
+                out = tf.nn.bias_add(conv, biases)
+                self.conv1 = tf.nn.relu(out, name=scope)
+                self.parameters += [kernel, biases]
+
+            with tf.name_scope('pool1'):
+                self.pool1 = tf.nn.max_pool(self.conv1,
+                                            ksize=[1, 2, 2, 1],
+                                            strides=[1, 2, 2, 1],
+                                            padding='VALID',
+                                            name='pool1')
+
+            with tf.name_scope('conv2') as scope:
+                kernel = tf.Variable(tf.truncated_normal([3, 3, 16, 16],
+                                                         dtype=tf.float32,
+                                                         stddev=1e-1),
+                                     name='weights')
+                conv = tf.nn.conv2d(self.pool1, kernel, [1, 1, 1, 1], padding='VALID')
+                biases = tf.Variable(tf.constant(0.0, shape=[16], dtype=tf.float32),
+                                     trainable=True, name='biases')
+                out = tf.nn.bias_add(conv, biases)
+                self.conv2 = tf.nn.relu(out, name=scope)
+                self.parameters += [kernel, biases]
+
+            with tf.name_scope('pool2'):
+                self.pool2 = tf.nn.max_pool(self.conv2,
+                                            ksize=[1, 2, 2, 1],
+                                            strides=[1, 2, 2, 1],
+                                            padding='VALID',
+                                            name='pool2')
+
+            with tf.name_scope('conv3') as scope:
+                kernel = tf.Variable(tf.truncated_normal([3, 3, 16, 8],
+                                                         dtype=tf.float32,
+                                                         stddev=1e-1),
+                                     name='weights')
+                conv = tf.nn.conv2d(self.pool2, kernel, [1, 1, 1, 1], padding='VALID')
+                biases = tf.Variable(tf.constant(0.0, shape=[8], dtype=tf.float32),
+                                     trainable=True, name='biases')
+                out = tf.nn.bias_add(conv, biases)
+                self.conv3 = tf.nn.relu(out, name=scope)
+                self.parameters += [kernel, biases]
+
+            with tf.name_scope('pool3'):
+                self.pool3 = tf.nn.max_pool(self.conv1,
+                                            ksize=[1, 2, 2, 1],
+                                            strides=[1, 2, 2, 1],
+                                            padding='VALID',
+                                            name='pool3')
+
+            with tf.name_scope('fc1'):
+                shape = int(np.prod(self.pool3.get_shape()[1:]))
+                midsize = int(shape/2)
+                w = tf.Variable(tf.truncated_normal([shape, midsize], dtype=tf.float32, stddev=1e-1), name='weight')
+                b = tf.Variable(tf.constant(1.0, shape=[midsize], dtype=tf.float32), trainable=True, name='bias')
+                pool_flat = tf.reshape(self.pool3, [-1, shape])
+                fc1 = tf.nn.bias_add(tf.matmul(pool_flat, w), b)
+                self.fc1 = tf.nn.relu(fc1)
+                self.parameters += [w, b]
+
+            with tf.name_scope('fc2'):
+                w = tf.Variable(tf.truncated_normal([midsize, self.decision_size], dtype=tf.float32, stddev=1e-1), name='weight')
+                b = tf.Variable(tf.constant(1.0, shape=[midsize], dtype=tf.float32), trainable=True, name='bias')
+                fc2 = tf.nn.bias_add(tf.matmul(self.fc1, w), b)
+                self.decision = tf.nn.softmax(fc2)
+                self.parameters += [w, b]
+
+            with tf.name_scope('train'):
+                self.label = tf.placeholder(tf.float32, shape=[None, self.decision_size], name='label')
+                self.loss = tf.reduce_mean(tf.square(self.decision - self.label))
+                self.optimizer = tf.train.AdamOptimizer()
+                self.train_step = self.optimizer.minimize(self.loss)
+        return
+
+    def run(self, input_state):
+        decision_prob = self.session.run(self.decision, feed_dict={self.im: input_state})
+        ## 200ms~800ms, every 20ms is a decision
+        decision = np.argmax(decision_prob)
+        press_time = 200 + decision*20
+        return press_time, decision
+
+    def train(self, input_state, label, train_degree):
+        for _ in range(train_degree):
+            self.session.run(self.train_step, feed_dict={self.im: input_state, self.label: label})
+        return
+
+    def load_weights(self, weights_file_name):
+        weights = np.load(weights_file_name)
+        keys = sorted(weights.keys(), key=lambda x:int(x.split('_')[1]))
+        for i, k in enumerate(keys):
+            print(i, k, np.shape(weights[k]))
+            self.session.run(self.parameters[i].assign(weights[k]))
+
+    def save_weights(self, save_file_name):
+        weights = []
+        for each in self.parameters:
+            weight = self.session.run(each)
+            weights.append(weight)
+        np.savez(save_file_name, *weights)
+

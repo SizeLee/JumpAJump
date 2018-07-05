@@ -14,6 +14,7 @@
 /data/
 *.npz
 *.txt
+*.png
 
 # draft file for test grammer
 draft.py
