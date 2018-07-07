@@ -19,6 +19,7 @@ class JumpRobot:
         self.dqn = None
         self.last_decision = 0
         self.last_state = None
+        self.last_d_prob = None
         return
 
     def __screencap(self, filename):
@@ -90,7 +91,8 @@ class JumpRobot:
             if die_flag:
                 if trainable_flag and train_flag:
                     train_degree = 10
-                    label = np.ones((1, self.dqn.decision_size))
+                    # label = np.ones((1, self.dqn.decision_size))
+                    label = self.last_d_prob + self.last_d_prob[0, self.last_decision]/(self.dqn.decision_size - 1)
                     label[0, self.last_decision] = 0
                     # label = label/(self.dqn.decision_size - 1)
                     # label = label / 2
@@ -103,12 +105,12 @@ class JumpRobot:
                 ### survive, so promote the last decision in last state
                 if trainable_flag and train_flag:
                     ## todo set label and training degree by score change
-                    train_degree = 5
+                    train_degree = 2
                     label = np.zeros((1, self.dqn.decision_size))
                     label[0, self.last_decision] = 1
                     self.dqn.train(self.last_state, label, train_degree)
                 ##
-                self.press_time, self.last_decision = self.dqn.run(self.resize_state)
+                self.press_time, self.last_decision, self.last_d_prob = self.dqn.run(self.resize_state)
                 self.last_state = self.resize_state
                 if not train_flag:
                     train_flag = True
@@ -186,5 +188,5 @@ if __name__ == '__main__':
     jump_robot = JumpRobot()
     # jump_robot.getNextState()
     # jump_robot.decide_and_jump(50, True, True)
-    # jump_robot.decide_and_jump(50, True, True, 'autojump.npz')
-    jump_robot.test()
+    jump_robot.decide_and_jump(50, True, True, 'autojump.npz')
+    # jump_robot.test()

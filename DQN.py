@@ -141,7 +141,8 @@ class ZeroGamaDQN:
         ## 200ms~800ms, every 20ms is a decision
         decision = np.argmax(decision_prob)
         press_time = 200 + decision*20
-        return press_time, decision
+        # return press_time, decision
+        return press_time, decision, decision_prob
 
     def train(self, input_state, label, train_degree):
         for _ in range(train_degree):
