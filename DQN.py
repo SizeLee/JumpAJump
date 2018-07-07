@@ -26,12 +26,13 @@ class ZeroGamaDQN:
             with tf.name_scope('input'):
                 self.im = tf.placeholder(tf.float32, [None, self.imsize[0], self.imsize[1], self.imsize[2]], name='image')
             with tf.name_scope('conv1') as scope:
-                kernel = tf.Variable(tf.truncated_normal([3, 3, self.imsize[2], 16],
+                out_channel = 8
+                kernel = tf.Variable(tf.truncated_normal([3, 3, self.imsize[2], out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
                                      name='weights')
                 conv = tf.nn.conv2d(self.im, kernel, [1, 1, 1, 1], padding='VALID')
-                biases = tf.Variable(tf.constant(0.0, shape=[16], dtype=tf.float32),
+                biases = tf.Variable(tf.constant(0.0, shape=[out_channel], dtype=tf.float32),
                                      trainable=True, name='biases')
                 out = tf.nn.bias_add(conv, biases)
                 self.conv1 = tf.nn.relu(out, name=scope)
@@ -45,12 +46,14 @@ class ZeroGamaDQN:
                                             name='pool1')
 
             with tf.name_scope('conv2') as scope:
-                kernel = tf.Variable(tf.truncated_normal([3, 3, 16, 16],
+                in_channel = 8
+                out_channel = 16
+                kernel = tf.Variable(tf.truncated_normal([3, 3, in_channel, out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
                                      name='weights')
                 conv = tf.nn.conv2d(self.pool1, kernel, [1, 1, 1, 1], padding='VALID')
-                biases = tf.Variable(tf.constant(0.0, shape=[16], dtype=tf.float32),
+                biases = tf.Variable(tf.constant(0.0, shape=[out_channel], dtype=tf.float32),
                                      trainable=True, name='biases')
                 out = tf.nn.bias_add(conv, biases)
                 self.conv2 = tf.nn.relu(out, name=scope)
@@ -64,37 +67,61 @@ class ZeroGamaDQN:
                                             name='pool2')
 
             with tf.name_scope('conv3') as scope:
-                kernel = tf.Variable(tf.truncated_normal([3, 3, 16, 8],
+                in_channel = 16
+                out_channel = 8
+                kernel = tf.Variable(tf.truncated_normal([3, 3, in_channel, out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
                                      name='weights')
                 conv = tf.nn.conv2d(self.pool2, kernel, [1, 1, 1, 1], padding='VALID')
-                biases = tf.Variable(tf.constant(0.0, shape=[8], dtype=tf.float32),
+                biases = tf.Variable(tf.constant(0.0, shape=[out_channel], dtype=tf.float32),
                                      trainable=True, name='biases')
                 out = tf.nn.bias_add(conv, biases)
                 self.conv3 = tf.nn.relu(out, name=scope)
                 self.parameters += [kernel, biases]
 
             with tf.name_scope('pool3'):
-                self.pool3 = tf.nn.max_pool(self.conv1,
+                self.pool3 = tf.nn.max_pool(self.conv3,
+                                            ksize=[1, 2, 2, 1],
+                                            strides=[1, 2, 2, 1],
+                                            padding='VALID',
+                                            name='pool3')
+
+            with tf.name_scope('conv4') as scope:
+                in_channel = 8
+                out_channel = 4
+                kernel = tf.Variable(tf.truncated_normal([3, 3, in_channel, out_channel],
+                                                         dtype=tf.float32,
+                                                         stddev=1e-1),
+                                     name='weights')
+                conv = tf.nn.conv2d(self.pool3, kernel, [1, 1, 1, 1], padding='VALID')
+                biases = tf.Variable(tf.constant(0.0, shape=[out_channel], dtype=tf.float32),
+                                     trainable=True, name='biases')
+                out = tf.nn.bias_add(conv, biases)
+                self.conv4 = tf.nn.relu(out, name=scope)
+                self.parameters += [kernel, biases]
+
+            with tf.name_scope('pool4'):
+                self.pool4 = tf.nn.max_pool(self.conv4,
                                             ksize=[1, 2, 2, 1],
                                             strides=[1, 2, 2, 1],
                                             padding='VALID',
                                             name='pool3')
 
             with tf.name_scope('fc1'):
-                shape = int(np.prod(self.pool3.get_shape()[1:]))
-                midsize = int(shape/2)
+                shape = int(np.prod(self.pool4.get_shape()[1:]))
+                # print(shape)
+                midsize = int(shape/3*2)
                 w = tf.Variable(tf.truncated_normal([shape, midsize], dtype=tf.float32, stddev=1e-1), name='weight')
                 b = tf.Variable(tf.constant(1.0, shape=[midsize], dtype=tf.float32), trainable=True, name='bias')
-                pool_flat = tf.reshape(self.pool3, [-1, shape])
+                pool_flat = tf.reshape(self.pool4, [-1, shape])
                 fc1 = tf.nn.bias_add(tf.matmul(pool_flat, w), b)
                 self.fc1 = tf.nn.relu(fc1)
                 self.parameters += [w, b]
 
             with tf.name_scope('fc2'):
                 w = tf.Variable(tf.truncated_normal([midsize, self.decision_size], dtype=tf.float32, stddev=1e-1), name='weight')
-                b = tf.Variable(tf.constant(1.0, shape=[midsize], dtype=tf.float32), trainable=True, name='bias')
+                b = tf.Variable(tf.constant(1.0, shape=[self.decision_size], dtype=tf.float32), trainable=True, name='bias')
                 fc2 = tf.nn.bias_add(tf.matmul(self.fc1, w), b)
                 self.decision = tf.nn.softmax(fc2)
                 self.parameters += [w, b]
@@ -103,7 +130,10 @@ class ZeroGamaDQN:
                 self.label = tf.placeholder(tf.float32, shape=[None, self.decision_size], name='label')
                 self.loss = tf.reduce_mean(tf.square(self.decision - self.label))
                 self.optimizer = tf.train.AdamOptimizer()
+                # self.optimizer = tf.train.GradientDescentOptimizer(0.03)
                 self.train_step = self.optimizer.minimize(self.loss)
+
+            self.test_node = fc2
         return
 
     def run(self, input_state):
@@ -115,7 +145,8 @@ class ZeroGamaDQN:
 
     def train(self, input_state, label, train_degree):
         for _ in range(train_degree):
-            self.session.run(self.train_step, feed_dict={self.im: input_state, self.label: label})
+            _, loss, test_node = self.session.run([self.train_step, self.loss, self.test_node], feed_dict={self.im: input_state, self.label: label})
+            print('loss:', loss, test_node)
         return
 
     def load_weights(self, weights_file_name):
