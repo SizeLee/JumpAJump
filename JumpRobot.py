@@ -61,7 +61,7 @@ class JumpRobot:
         # print(grey.shape)
         # plt.imshow(grey)
         # plt.show()
-        resize_state = imresize(grey, size=(resize_height, resize_width))
+        resize_state = imresize(grey, size=(resize_height, resize_width), interp='nearest')
         # plt.imshow(resize_state)
         # plt.show()
         return resize_state
@@ -187,6 +187,6 @@ class JumpRobot:
 if __name__ == '__main__':
     jump_robot = JumpRobot()
     # jump_robot.getNextState()
-    # jump_robot.decide_and_jump(50, True, True)
-    jump_robot.decide_and_jump(50, True, True, 'autojump.npz')
+    jump_robot.decide_and_jump(50, True, True)
+    # jump_robot.decide_and_jump(50, True, True, 'autojump.npz')
     # jump_robot.test()

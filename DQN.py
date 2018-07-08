@@ -156,6 +156,7 @@ class ZeroGamaDQN:
         for i, k in enumerate(keys):
             print(i, k, np.shape(weights[k]))
             self.session.run(self.parameters[i].assign(weights[k]))
+        return
 
     def save_weights(self, save_file_name):
         weights = []
@@ -163,4 +164,4 @@ class ZeroGamaDQN:
             weight = self.session.run(each)
             weights.append(weight)
         np.savez(save_file_name, *weights)
-
+        return
