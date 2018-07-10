@@ -22,7 +22,8 @@ class JumpRobot:
         self.last_d_prob = None
         return
 
-    def __screencap(self, filename):
+    @staticmethod
+    def __screencap(filename):
         adb_path_str = '.\\adb\\'
         device_path_str = '/storage/emulated/0/DCIM/jumpshot/'
         os.system(adb_path_str + 'adb shell rm ' + device_path_str + '*.png')
@@ -47,7 +48,8 @@ class JumpRobot:
         self.state = next_state
         return next_state
 
-    def __rgb2grey(self, rgb):
+    @staticmethod
+    def __rgb2grey(rgb):
         r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
         grey = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return grey
@@ -146,7 +148,7 @@ class JumpRobot:
             """
             将 swipe 设置为 `再来一局` 按钮的位置
             """
-            ## todo here should find button position by picture
+            ## here should find button position by picture
             h, w = im.shape[:2]
             left = int(w / 2)
             if im[1, 1, 0] == im[-2, -2, 0] and im[1, 1, 1] == im[-2, -2, 1] and im[1, 1, 2] == im[-2, -2, 2]:
@@ -170,9 +172,9 @@ class JumpRobot:
 
         return
 
-
-    def __is_died(self, state):
-        ## todo judge whether the current state is died
+    @staticmethod
+    def __is_died(state):
+        ## judge whether the current state is died
         # [119 121 127] dead; [[215 219 230] alive
         if state[1][1][0] < 180 and state[1][1][1] < 180 and state[1][1][2] < 180:
             return True

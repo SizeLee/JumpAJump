@@ -13,6 +13,7 @@ class ScoreRecognizer:
         self.height_start_mark = int(200/1920*self.resize_height) + 1
         self.digit_weight = 8
         self.digit_height = 10
+        # here can set digit number by score_area, now it's three
         self.score_area = (self.height_start_mark, self.height_start_mark + self.digit_height,
                            self.width_start_mark, self.width_start_mark + 3 * self.digit_weight + 3)
         # im_sample= imresize(im_sample, (self.resize_height, self.resize_width), interp='nearest')
@@ -61,6 +62,7 @@ class ScoreRecognizer:
         take_right = take_left + self.digit_weight
         recognition_flag = False
         number = 0
+        i = 0
         while(take_left < im.shape[1]):
             digit_im = im[:, take_left:take_right]
             digit = self.digit_classifier.run(digit_im)
@@ -70,8 +72,13 @@ class ScoreRecognizer:
                 recognition_flag = True
                 number = number*10 + digit
 
-            take_left += self.digit_weight + 1
-            take_right += self.digit_weight + 1
+            if i == 1:
+                take_left += self.digit_weight + 2
+                take_right += self.digit_weight + 2
+            else:
+                take_left += self.digit_weight + 1
+                take_right += self.digit_weight + 1
+            i += 1
 
         if recognition_flag:
             return number
@@ -194,7 +201,8 @@ if __name__ == '__main__':
     # sr.test(im)
     # sr.train(100)
     sr = ScoreRecognizer('./data/score_digit_samples/digit_weight.npz')
-    im = imread('./data/score_digit_samples/8.png')
+    im = imread('./data/score_digit_samples/107.png')
+    # sr.test(im)
     re = sr.recognize(im)
     print(re)
 
