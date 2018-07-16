@@ -107,7 +107,7 @@ class JumpRobot:
                 ### survive, so promote the last decision in last state
                 if trainable_flag and train_flag:
                     ## todo set label and training degree by score change
-                    train_degree = 2
+                    train_degree = 0
                     label = np.zeros((1, self.dqn.decision_size))
                     label[0, self.last_decision] = 1
                     self.dqn.train(self.last_state, label, train_degree)
@@ -189,6 +189,6 @@ class JumpRobot:
 if __name__ == '__main__':
     jump_robot = JumpRobot()
     # jump_robot.getNextState()
-    jump_robot.decide_and_jump(50, True, True)
-    # jump_robot.decide_and_jump(50, True, True, 'autojump.npz')
+    # jump_robot.decide_and_jump(50, True, True)
+    jump_robot.decide_and_jump(100, True, True, 'autojump.npz')
     # jump_robot.test()
