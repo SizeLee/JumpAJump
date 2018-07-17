@@ -5,7 +5,7 @@ class ZeroGamaDQN:
     def __init__(self, train_flag, imsize, weight_filename=None):
         self.train_flag = train_flag
         self.imsize = imsize
-        ## 200ms~800ms, every 20ms is a decision
+        ## 300ms~900ms, every 20ms is a decision
         self.decision_size = 31
         self.graph = tf.Graph()
         self.parameters = []
@@ -127,8 +127,14 @@ class ZeroGamaDQN:
                 self.parameters += [w, b]
 
             with tf.name_scope('train'):
-                self.label = tf.placeholder(tf.float32, shape=[None, self.decision_size], name='label')
-                self.loss = tf.reduce_mean(tf.square(self.decision - self.label))
+                self.decision_label = tf.placeholder(tf.float32, shape=[None, self.decision_size], name='decision_label')
+                self.reward_label = tf.placeholder(tf.float32, shape=[None, 1], name='reward_label')
+                self.loss = tf.reduce_mean(
+                                tf.square(
+                                    tf.reduce_sum(self.decision_label * fc2, reduction_indices=1) - self.reward_label
+                                )
+                            )
+                # self.loss = tf.reduce_mean(tf.square(self.decision - self.decision_label))
                 self.optimizer = tf.train.AdamOptimizer()
                 # self.optimizer = tf.train.GradientDescentOptimizer(0.03)
                 self.train_step = self.optimizer.minimize(self.loss)
@@ -138,15 +144,18 @@ class ZeroGamaDQN:
 
     def run(self, input_state):
         decision_prob = self.session.run(self.decision, feed_dict={self.im: input_state})
-        ## 200ms~800ms, every 20ms is a decision
+        ## 300ms~900ms, every 20ms is a decision
         decision = np.argmax(decision_prob)
-        press_time = 200 + decision*20
+        press_time = 300 + decision*20
         # return press_time, decision
         return press_time, decision, decision_prob
 
-    def train(self, input_state, label, train_degree):
+    def train(self, input_state, decision_label, reward_label, train_degree):
         for _ in range(train_degree):
-            _, loss, test_node = self.session.run([self.train_step, self.loss, self.test_node], feed_dict={self.im: input_state, self.label: label})
+            _, loss, test_node = self.session.run([self.train_step, self.loss, self.test_node],
+                                                  feed_dict={self.im: input_state,
+                                                             self.decision_label: decision_label,
+                                                             self.reward_label: reward_label})
             print('loss:', loss, test_node)
         return
 

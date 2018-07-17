@@ -1,11 +1,11 @@
-import tensorflow as tf
-import numpy as np
 import os
 from scipy.misc import *
 import time
 import random
 import DQN
 import matplotlib.pyplot as plt
+import ScoreRecognition
+import numpy as np
 
 class JumpRobot:
     def __init__(self):
@@ -20,6 +20,7 @@ class JumpRobot:
         self.last_decision = 0
         self.last_state = None
         self.last_d_prob = None
+        self.score_recognizer = ScoreRecognition.ScoreRecognizer('./data/score_digit_samples/digit_weight.npz')
         return
 
     @staticmethod
@@ -78,6 +79,7 @@ class JumpRobot:
         self.dqn = DQN.ZeroGamaDQN(trainable_flag, (resize_height, resize_width, 1), weights_file_name)
         train_flag = False
         die_flag = False
+        last_score = 0
         for _ in range(jump_time):
             print('trainging_round:', _)
             self.getNextState()
@@ -92,30 +94,36 @@ class JumpRobot:
 
             if die_flag:
                 if trainable_flag and train_flag:
-                    train_degree = 10
+                    train_degree = 6
                     # label = np.ones((1, self.dqn.decision_size))
-                    label = self.last_d_prob + self.last_d_prob[0, self.last_decision]/(self.dqn.decision_size - 1)
-                    label[0, self.last_decision] = 0
+                    # label = self.last_d_prob + self.last_d_prob[0, self.last_decision]/(self.dqn.decision_size - 1)
+                    label = np.zeros((1, self.dqn.decision_size))
+                    label[0, self.last_decision] = 1
+                    reward = np.array([[-1]])
                     # label = label/(self.dqn.decision_size - 1)
                     # label = label / 2
-                    self.dqn.train(self.last_state, label, train_degree)
+                    self.dqn.train(self.last_state, label, reward, train_degree)
 
-                self.press_time = 200
+                self.press_time = 500
                 # press_location_change_flag = True
 
             else:
                 ### survive, so promote the last decision in last state
+                cur_score = self.score_recognizer.recognize(self.state)
                 if trainable_flag and train_flag:
                     ## todo set label and training degree by score change
-                    train_degree = 0
+                    train_degree = 5
+                    reward = np.array([[(cur_score - last_score) % 10]])
+                    print(reward)
                     label = np.zeros((1, self.dqn.decision_size))
                     label[0, self.last_decision] = 1
-                    self.dqn.train(self.last_state, label, train_degree)
+                    self.dqn.train(self.last_state, label, reward, train_degree)
                 ##
                 self.press_time, self.last_decision, self.last_d_prob = self.dqn.run(self.resize_state)
                 self.last_state = self.resize_state
                 if not train_flag:
                     train_flag = True
+                last_score = cur_score
 
             # if press_location_change_flag:
             #     self.__set_button_position(self.state, die_flag)
@@ -155,7 +163,7 @@ class JumpRobot:
                 top = int(1584 * (h / 1920.0))
             else:
                 top = int(1431 * (h / 1920.0))
-            left = int(random.uniform(left - 100, left + 230))
+            left = int(random.uniform(left - 50, left + 230))
             top = int(random.uniform(top - 50, top + 50))  # 随机防 ban
             after_top = int(random.uniform(top - 50, top + 50))
             after_left = int(random.uniform(left - 50, left + 50))
@@ -190,5 +198,5 @@ if __name__ == '__main__':
     jump_robot = JumpRobot()
     # jump_robot.getNextState()
     # jump_robot.decide_and_jump(50, True, True)
-    jump_robot.decide_and_jump(100, True, True, 'autojump.npz')
+    jump_robot.decide_and_jump(200, True, True, 'autojump.npz')
     # jump_robot.test()

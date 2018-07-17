@@ -114,17 +114,17 @@ class TrainingSamplesGenerator:
 
     ##todo random pick jump time by gaussian distribution
     def generate_samples_by_random(self, sample_number):
-        rand_jump_time = np.random.normal(loc=540, scale=150, size=sample_number)
+        rand_jump_time = np.random.normal(loc=600, scale=150, size=sample_number)
         # print(rand_jump_time)
         rand_jump_time = np.ceil(rand_jump_time/20) * 20
-        reserve_location = rand_jump_time >= 200
-        change_location = rand_jump_time < 200
-        rand_jump_time = reserve_location * rand_jump_time + 200 * change_location
-        reserve_location = rand_jump_time <= 800
-        change_location = rand_jump_time > 800
-        rand_jump_time = reserve_location * rand_jump_time + 800 * change_location
+        reserve_location = rand_jump_time >= 300
+        change_location = rand_jump_time < 300
+        rand_jump_time = reserve_location * rand_jump_time + 300 * change_location
+        reserve_location = rand_jump_time <= 900
+        change_location = rand_jump_time > 900
+        rand_jump_time = reserve_location * rand_jump_time + 900 * change_location
         # print(rand_jump_time)
-        choice = (rand_jump_time-200)/20
+        choice = (rand_jump_time-300)/20
         # print(choice)
         die_flag = False
         last_score = 0
@@ -140,6 +140,7 @@ class TrainingSamplesGenerator:
                 self.__set_button_position(state, die_flag)
                 self.press_time = 300
                 self.__press()
+                last_score = 0
                 if record_flag:
                     samples_state.append(last_state)
                     rewards.append(-2)
