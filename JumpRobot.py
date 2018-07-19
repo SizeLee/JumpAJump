@@ -55,16 +55,25 @@ class JumpRobot:
         grey = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return grey
 
+    @staticmethod
+    def __rgb_plus_grey(rgb):
+        r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+        grey = 0.2989 * r + 0.5870 * g + 0.1140 * b
+        mix = np.stack((r, g, b, grey), axis=2)
+        return mix
+
     def __preprocess_state(self, state):
         resize_width = 128
         resize_height = int(1920 * 0.35 / 1080 * resize_width)
         decision_area_top = int(0.35 * 1920)
         decision_area_bottom = int(0.7 * 1920)
-        grey = self.__rgb2grey(state[decision_area_top:decision_area_bottom, :, :])
+        # grey = self.__rgb2grey(state[decision_area_top:decision_area_bottom, :, :])
+        mix = self.__rgb_plus_grey(state[decision_area_top:decision_area_bottom, :, :])
         # print(grey.shape)
         # plt.imshow(grey)
         # plt.show()
-        resize_state = imresize(grey, size=(resize_height, resize_width), interp='nearest')
+        # resize_state = imresize(grey, size=(resize_height, resize_width), interp='nearest')
+        resize_state = imresize(mix, size=(resize_height, resize_width), interp='nearest')
         # plt.imshow(resize_state)
         # plt.show()
         return resize_state
@@ -76,7 +85,8 @@ class JumpRobot:
         resize_state = self.__preprocess_state(self.state)
         resize_width = resize_state.shape[0]
         resize_height = resize_state.shape[1]
-        self.dqn = DQN.ZeroGamaDQN(trainable_flag, (resize_height, resize_width, 1), weights_file_name)
+        channel = resize_state.shape[2]
+        self.dqn = DQN.ZeroGamaDQN(trainable_flag, (resize_height, resize_width, channel), weights_file_name)
         train_flag = False
         die_flag = False
         last_score = 0
@@ -86,7 +96,7 @@ class JumpRobot:
             ### here decide by neural network and basic judge if it's dead, then set the press time
             # self.resize_state = imresize(self.state, size=(resize_height, resize_width)).reshape((1, resize_height,
             #                                                                                       resize_width, 3))
-            self.resize_state = self.__preprocess_state(self.state).reshape((1, resize_height, resize_width, 1))
+            self.resize_state = self.__preprocess_state(self.state).reshape((1, resize_height, resize_width, channel))
             if die_flag:
                 train_flag = False
 
@@ -129,7 +139,7 @@ class JumpRobot:
             #     self.__set_button_position(self.state, die_flag)
             #     press_location_change_flag = False
             self.__set_button_position(self.state, die_flag)
-            self.__press()
+            self.__press(die_flag)
             print('decision:', self.last_decision, 'press_time:', self.press_time)
             print()
             time.sleep(1)
@@ -139,14 +149,57 @@ class JumpRobot:
 
         return
 
-    def __press(self):
+    def __read_samples(self):
+        npzfile = np.load('./data/jump_sample/choice_rewards.npz')
+        self.choice = npzfile['choice']
+        self.rewards = npzfile['rewards']
+        sample_num = len(self.choice)
+        self.choice = self.choice.astype(np.int)
+        # print(self.choice.dtype)
+        # print(self.rewards)
+        im = imread('./data/jump_sample/%d.png' % 0, mode='RGB')
+        im = self.__preprocess_state(im)
+        im = im.reshape((1, im.shape[0], im.shape[1], im.shape[2]))
+        self.sample_states = im
+        for i in range(1, sample_num):
+            print(i)
+            im = imread('./data/jump_sample/%d.png' % i, mode='RGB')
+            im = self.__preprocess_state(im)
+            im = im.reshape((1, im.shape[0], im.shape[1], im.shape[2]))
+            self.sample_states = np.vstack((self.sample_states, im))
+        self.sample_states = np.array(self.sample_states)
+        print(self.sample_states.shape)
+        return
+
+    def train_by_records(self, train_epochs, mini_batch_size=8, save_file_name='./autojump_rec.npz'):
+        self.__read_samples()
+        sample_num = len(self.choice)
+        self.rewards = self.rewards.reshape((sample_num, 1))
+        self.dqn = DQN.ZeroGamaDQN(True, self.sample_states.shape[1:])
+        choice_matrix = np.zeros((sample_num, self.dqn.decision_size))
+        choice_matrix[[i for i in range(sample_num)], self.choice] = 1
+        for _ in range(train_epochs):
+            print('round %d' % _)
+            mini_batch_index = random.sample([i for i in range(sample_num)], mini_batch_size)
+            test_node = self.dqn.train(self.sample_states[mini_batch_index],
+                           choice_matrix[mini_batch_index],
+                           self.rewards[mini_batch_index],
+                           1)
+        print(test_node)
+        self.dqn.save_weights(save_file_name)
+        return
+
+    def __press(self, die_flag):
         adb_path_str = '.\\adb\\'
-        cmd = adb_path_str + 'adb shell input swipe {x1} {y1} {x2} {y2} {duration}'.format(
+        if die_flag:
+            cmd = adb_path_str + 'adb shell input tap {x1} {y1}'.format(x1=self.swipe_x1, y1=self.swipe_y1)
+        else:
+            cmd = adb_path_str + 'adb shell input swipe {x1} {y1} {x2} {y2} {duration}'.format(
             x1=self.swipe_x1,
             y1=self.swipe_y1,
             x2=self.swipe_x2,
             y2=self.swipe_y2,
-            duration=self.press_time
+            duration=int(self.press_time)
         )
         os.system(cmd)
         return
@@ -198,5 +251,8 @@ if __name__ == '__main__':
     jump_robot = JumpRobot()
     # jump_robot.getNextState()
     # jump_robot.decide_and_jump(50, True, True)
-    jump_robot.decide_and_jump(200, True, True, 'autojump.npz')
+    # jump_robot.decide_and_jump(200, True, True, 'autojump.npz')
     # jump_robot.test()
+    jump_robot.train_by_records(100000, mini_batch_size=32)
+    # jump_robot.decide_and_jump(50, False, False, 'autojump_rec.npz')
+

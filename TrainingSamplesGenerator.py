@@ -63,15 +63,22 @@ class TrainingSamplesGenerator:
         # plt.show()
         return resize_state
 
-    def __press(self):
+    def __press(self, mode_str='swipe'):
         adb_path_str = '.\\adb\\'
-        cmd = adb_path_str + 'adb shell input swipe {x1} {y1} {x2} {y2} {duration}'.format(
+        if mode_str == 'tap':
+            cmd = adb_path_str + 'adb shell input tap {x1} {y1}'.format(x1=self.swipe_x1, y1=self.swipe_y1)
+        elif mode_str == 'swipe':
+            cmd = adb_path_str + 'adb shell input swipe {x1} {y1} {x2} {y2} {duration}'.format(
             x1=self.swipe_x1,
             y1=self.swipe_y1,
             x2=self.swipe_x2,
             y2=self.swipe_y2,
-            duration=self.press_time
+            duration=int(self.press_time)
         )
+        else:
+            print('Error press cmd')
+            return
+        # print(cmd)
         os.system(cmd)
         return
 
@@ -87,7 +94,7 @@ class TrainingSamplesGenerator:
                 top = int(1584 * (h / 1920.0))
             else:
                 top = int(1431 * (h / 1920.0))
-            left = int(random.uniform(left - 100, left + 230))
+            left = int(random.uniform(left - 50, left + 230))
             top = int(random.uniform(top - 50, top + 50))  # 随机防 ban
             after_top = int(random.uniform(top - 50, top + 50))
             after_left = int(random.uniform(left - 50, left + 50))
@@ -101,6 +108,7 @@ class TrainingSamplesGenerator:
             after_top = int(random.uniform(top - 50, top + 50))
             after_left = int(random.uniform(left - 50, left + 50))
             self.swipe_x1, self.swipe_y1, self.swipe_x2, self.swipe_y2 = left, top, after_left, after_top
+            # print(self.swipe_x1,self.swipe_x2,self.swipe_y1, self.swipe_y2)
 
         return
 
@@ -139,14 +147,16 @@ class TrainingSamplesGenerator:
             if die_flag:
                 self.__set_button_position(state, die_flag)
                 self.press_time = 300
-                self.__press()
+                self.__press('tap')
                 last_score = 0
                 if record_flag:
                     samples_state.append(last_state)
-                    rewards.append(-2)
+                    rewards.append(-1)
                     gotten_sample += 1
+                    print('gotten %d samples' % gotten_sample)
                     record_flag = False
-
+                    if gotten_sample >= sample_number:
+                        break
             else:
                 cur_score = self.score_recognizer.recognize(state)
                 reward = (cur_score - last_score) % 10
@@ -154,6 +164,9 @@ class TrainingSamplesGenerator:
                     samples_state.append(last_state)
                     rewards.append(reward)
                     gotten_sample += 1
+                    print('gotten %d samples' % gotten_sample)
+                    if gotten_sample >= sample_number:
+                        break
                 else:
                     record_flag = True
                 last_state = state
@@ -162,13 +175,23 @@ class TrainingSamplesGenerator:
                 self.__set_button_position(state, die_flag)
                 self.__press()
 
-            if gotten_sample >= sample_number:
-                break
+
             time.sleep(1)
         # todo save all the picture state and other data in file
-
+        rewards = np.array(rewards)
+        np.savez('./data/jump_sample/choice_rewards.npz', choice=choice, rewards=rewards)
+        for i in range(len(samples_state)):
+            imsave('./data/jump_sample/%d.png' % i, samples_state[i])
         return
+
+    def read_samples(self):
+        npzfile = np.load('./data/jump_sample/choice_rewards.npz')
+        choice = npzfile['choice']
+        rewards = npzfile['rewards']
+        # print(choice, rewards)
+        # print(type(npzfile))
 
 if __name__ == '__main__':
     tsg = TrainingSamplesGenerator()
-    tsg.generate_samples_by_random(100)
+    tsg.generate_samples_by_random(1000)
+    # tsg.read_samples()
