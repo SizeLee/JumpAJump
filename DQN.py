@@ -47,7 +47,7 @@ class ZeroGamaDQN:
 
             with tf.name_scope('conv2') as scope:
                 in_channel = 32
-                out_channel = 64
+                out_channel = 16
                 kernel = tf.Variable(tf.truncated_normal([4, 4, in_channel, out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
@@ -68,8 +68,8 @@ class ZeroGamaDQN:
             #                                 name='pool2')
 
             with tf.name_scope('conv3') as scope:
-                in_channel = 64
-                out_channel = 64
+                in_channel = 16
+                out_channel = 8
                 kernel = tf.Variable(tf.truncated_normal([3, 3, in_channel, out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
@@ -90,8 +90,8 @@ class ZeroGamaDQN:
             #                                 name='pool3')
 
             with tf.name_scope('conv4') as scope:
-                in_channel = 64
-                out_channel = 32
+                in_channel = 8
+                out_channel = 4
                 kernel = tf.Variable(tf.truncated_normal([3, 3, in_channel, out_channel],
                                                          dtype=tf.float32,
                                                          stddev=1e-1),
@@ -141,7 +141,8 @@ class ZeroGamaDQN:
                                 )
                             )
                 # self.loss = tf.reduce_mean(tf.square(self.decision - self.decision_label))
-                self.optimizer = tf.train.AdamOptimizer()
+                # self.optimizer = tf.train.AdamOptimizer()
+                self.optimizer = tf.train.AdadeltaOptimizer()
                 # self.optimizer = tf.train.GradientDescentOptimizer(0.03)
                 self.train_step = self.optimizer.minimize(self.loss)
 

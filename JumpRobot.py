@@ -122,7 +122,7 @@ class JumpRobot:
                 cur_score = self.score_recognizer.recognize(self.state)
                 if trainable_flag and train_flag:
                     ## todo set label and training degree by score change
-                    train_degree = 5
+                    train_degree = 3
                     reward = np.array([[(cur_score - last_score) % 10]])
                     print(reward)
                     label = np.zeros((1, self.dqn.decision_size))
@@ -253,6 +253,8 @@ if __name__ == '__main__':
     # jump_robot.decide_and_jump(50, True, True)
     # jump_robot.decide_and_jump(200, True, True, 'autojump.npz')
     # jump_robot.test()
-    jump_robot.train_by_records(100000, mini_batch_size=32)
+    # jump_robot.train_by_records(100000, mini_batch_size=32)
     # jump_robot.decide_and_jump(50, False, False, 'autojump_rec.npz')
+    jump_robot.decide_and_jump(100, True, False, 'autojump_rec.npz')
+
 
